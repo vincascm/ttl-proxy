@@ -1,0 +1,21 @@
+[package]
+name = "ttl-proxy"
+version = "0.1.0"
+authors = ["vinoca <vinoca@vinoca.org>"]
+description = "a transparent TCP to SOCKSv5 proxy on Linux"
+edition = "2018"
+
+[dependencies]
+tokio = { version = "0.2", features = ["rt-core", "tcp", "dns", "io-util"] }
+futures = "0.3"
+failure = "0.1.7"
+bytes = "0.5"
+libc  = "0.2.68"
+#socks5x = { version = "0.1", git = "https://github.com/vincascm/socks5x.git" }
+socks5x = { version = "0.1", path = "../socks5x" }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
