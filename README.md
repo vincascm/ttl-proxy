@@ -26,3 +26,15 @@ or show help
 ttl-proxy -h
 ```
 
+use `iptables` redirect to `ttl-proxy`:
+
+host 
+```shell
+iptables -t nat -A OUTPUT -p tcp -m set --match-set myips dst -j REDIRECT --to-port 10800
+```
+
+or router
+```shell
+iptables -t nat -A PREROUTING -p tcp -m set --match-set myips dst -j REDIRECT --to-port 10800
+```
+
