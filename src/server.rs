@@ -5,7 +5,7 @@ use std::{
 };
 
 use failure::{format_err, Fallible};
-use socks5x::connect_without_auth;
+use socks5::connect_without_auth;
 use tokio::{
     io::{copy, ErrorKind},
     net::{lookup_host, TcpListener, TcpStream},
@@ -13,16 +13,32 @@ use tokio::{
 
 pub struct Server {
     client: TcpStream,
+    listen: SocketAddr,
     server: SocketAddr,
+    default_target_addr: SocketAddr,
 }
 
 impl Server {
-    pub fn new(client: TcpStream, server: SocketAddr) -> Self {
-        Self { client, server }
+    pub fn new(
+        listen: SocketAddr,
+        client: TcpStream,
+        server: SocketAddr,
+        default_target_addr: SocketAddr,
+    ) -> Self {
+        Self {
+            listen,
+            client,
+            server,
+            default_target_addr,
+        }
     }
 
-    pub async fn run(addr: &str, socks5_server_addr: &str) -> Fallible<()> {
-        let addr = lookup_host(addr).await?.next().ok_or_else(|| {
+    pub async fn run(
+        listen: &str,
+        socks5_server_addr: &str,
+        default_target_addr: &str,
+    ) -> Fallible<()> {
+        let listen = lookup_host(listen).await?.next().ok_or_else(|| {
             let e: std::io::Error = ErrorKind::AddrNotAvailable.into();
             e
         })?;
@@ -34,12 +50,21 @@ impl Server {
                     let e: std::io::Error = ErrorKind::AddrNotAvailable.into();
                     e
                 })?;
-        let mut listener = TcpListener::bind(addr).await?;
+        let default_target_addr =
+            lookup_host(default_target_addr)
+                .await?
+                .next()
+                .ok_or_else(|| {
+                    let e: std::io::Error = ErrorKind::AddrNotAvailable.into();
+                    e
+                })?;
+        let mut listener = TcpListener::bind(&listen).await?;
 
         loop {
             let (stream, _) = listener.accept().await?;
             tokio::spawn(async move {
-                let mut server = Server::new(stream, socks5_server_addr);
+                let mut server =
+                    Server::new(listen, stream, socks5_server_addr, default_target_addr);
                 if let Err(e) = server.proxy().await {
                     println!("error: {}", e);
                 }
@@ -48,7 +73,16 @@ impl Server {
     }
 
     async fn proxy(&mut self) -> Fallible<()> {
-        let dest_addr = self.get_dest_addr()?;
+        let dest_addr = match self.get_dest_addr() {
+            Ok(addr) => {
+                if addr == self.listen {
+                    self.default_target_addr
+                } else {
+                    addr
+                }
+            }
+            Err(_) => self.default_target_addr,
+        };
         let mut srv = connect_without_auth(self.server, dest_addr.into()).await?;
         let (mut srv_r, mut srv_w) = srv.split();
         let (mut r, mut w) = self.client.split();
@@ -56,7 +90,7 @@ impl Server {
         Ok(())
     }
 
-    fn get_dest_addr(&self) -> Fallible<SocketAddrV4> {
+    fn get_dest_addr(&self) -> Fallible<SocketAddr> {
         use libc::{__errno_location, getsockopt, sockaddr_in, socklen_t, SOL_IP, SO_ORIGINAL_DST};
         use std::ffi::c_void;
 
@@ -79,7 +113,7 @@ impl Server {
                     u32::from_be(destaddr.sin_addr.s_addr).into(),
                     u16::from_be(destaddr.sin_port),
                 );
-                Ok(addr)
+                Ok(SocketAddr::V4(addr))
             }
         }
     }

@@ -11,7 +11,8 @@ futures = "0.3"
 failure = "0.1.7"
 bytes = "0.5"
 libc  = "0.2.68"
-socks5x = { version = "0.1", git = "https://github.com/vincascm/socks5x.git" }
+clap = { version = "2.33.0", default-features = false }
+socks5 = { version = "0.1", git = "https://github.com/vincascm/socks5.git" }
 
 [profile.release]
 opt-level = "z"
