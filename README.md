@@ -7,6 +7,7 @@ ttl-proxy
 
 options:
     -h  show help
+    -d --default <default>    default target address
     -s <address> assgin a socks5 server address
     -l <address> assgin a listen address
     -V  show version
