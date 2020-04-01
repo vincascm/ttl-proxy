@@ -7,9 +7,9 @@ ttl-proxy
 
 options:
     -h  show help
-    -d --default <default>    default target address
-    -s <address> assgin a socks5 server address
-    -l <address> assgin a listen address
+    -d --default <default>    default target address, default value "1.1.1.1:53"
+    -s <address> assgin a socks5 server address, default value "127.0.0.1:1080"
+    -l <address> assgin a listen address, default value "127.0.0.1:10800"
     -V  show version
 ```
 

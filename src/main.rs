@@ -25,7 +25,7 @@ fn main() {
         .get_matches();
     let listen = matches.value_of("listen").unwrap_or("127.0.0.1:10800");
     let socks5 = matches.value_of("socks5").unwrap_or("127.0.0.1:1080");
-    let default = matches.value_of("default").unwrap_or("127.0.0.1:53530");
+    let default = matches.value_of("default").unwrap_or("1.1.1.1:53");
 
     let mut rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
