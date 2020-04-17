@@ -83,7 +83,7 @@ impl Server {
             }
             Err(_) => self.default_target_addr,
         };
-        let mut srv = connect_without_auth(self.server, dest_addr.into()).await?;
+        let mut srv = connect_without_auth(self.server, dest_addr).await?;
         let (mut srv_r, mut srv_w) = srv.split();
         let (mut r, mut w) = self.client.split();
         futures::future::select(copy(&mut r, &mut srv_w), copy(&mut srv_r, &mut w)).await;
