@@ -1,7 +1,6 @@
 use std::{
     mem,
-    net::{SocketAddr, SocketAddrV4},
-    net::{TcpListener, TcpStream},
+    net::{SocketAddr, SocketAddrV4, TcpListener, TcpStream, ToSocketAddrs},
     os::unix::io::AsRawFd,
 };
 
@@ -32,24 +31,28 @@ impl Server {
         }
     }
 
-    pub fn run(
-        listen: &str,
-        socks5_server_addr: &str,
-        default_target_addr: &str,
-    ) -> Result<()> {
+    pub fn run(listen: &str, socks5_server_addr: &str, default_target_addr: &str) -> Result<()> {
         let listen = listen.parse()?;
-        let socks5_server_addr = socks5_server_addr.parse()?;
-        let default_target_addr = default_target_addr.parse()?;
+        let socks5_server_addr = socks5_server_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(anyhow!("expect socks5 server address"))?;
+        let default_target_addr = default_target_addr
+            .to_socket_addrs()?
+            .next()
+            .ok_or(anyhow!("expect default target address"))?;
         smol::run(async {
             let listener = Async::<TcpListener>::bind(&listen)?;
             loop {
                 let (stream, _) = listener.accept().await?;
                 Task::spawn(async move {
-                    let server = Server::new(listen, stream, socks5_server_addr, default_target_addr);
+                    let server =
+                        Server::new(listen, stream, socks5_server_addr, default_target_addr);
                     if let Err(e) = server.proxy().await {
                         println!("error: {}", e);
                     }
-                }).detach();
+                })
+                .detach();
             }
         })
     }
