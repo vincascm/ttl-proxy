@@ -36,11 +36,11 @@ impl Server {
         let socks5_server_addr = socks5_server_addr
             .to_socket_addrs()?
             .next()
-            .ok_or(anyhow!("expect socks5 server address"))?;
+            .ok_or_else(||anyhow!("expect socks5 server address"))?;
         let default_target_addr = default_target_addr
             .to_socket_addrs()?
             .next()
-            .ok_or(anyhow!("expect default target address"))?;
+            .ok_or_else(||anyhow!("expect default target address"))?;
         smol::run(async {
             let listener = Async::<TcpListener>::bind(&listen)?;
             loop {
