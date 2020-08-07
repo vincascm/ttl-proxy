@@ -36,11 +36,11 @@ impl Server {
         let socks5_server_addr = socks5_server_addr
             .to_socket_addrs()?
             .next()
-            .ok_or_else(||anyhow!("expect socks5 server address"))?;
+            .ok_or_else(|| anyhow!("expect socks5 server address"))?;
         let default_target_addr = default_target_addr
             .to_socket_addrs()?
             .next()
-            .ok_or_else(||anyhow!("expect default target address"))?;
+            .ok_or_else(|| anyhow!("expect default target address"))?;
         smol::run(async {
             let listener = Async::<TcpListener>::bind(&listen)?;
             loop {
@@ -68,7 +68,7 @@ impl Server {
             }
             Err(_) => self.default_target_addr,
         };
-        let srv = connect_without_auth(self.server, dest_addr).await?;
+        let srv = connect_without_auth(self.server, dest_addr.into()).await?;
         let (mut srv_r, mut srv_w) = srv.split();
         let (mut r, mut w) = self.client.split();
         futures::future::select(copy(&mut r, &mut srv_w), copy(&mut srv_r, &mut w)).await;
