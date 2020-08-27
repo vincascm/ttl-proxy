@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use futures::io::{copy, AsyncReadExt};
-use smol::{Async, Task};
+use smol::Async;
 use socks5::connect_without_auth;
 
 pub struct Server {
@@ -32,7 +32,10 @@ impl Server {
     }
 
     pub fn run(listen: &str, socks5_server_addr: &str, default_target_addr: &str) -> Result<()> {
-        let listen = listen.parse()?;
+        let listen = listen
+            .to_socket_addrs()?
+            .next()
+            .ok_or_else(|| anyhow!("invalid listen address"))?;
         let socks5_server_addr = socks5_server_addr
             .to_socket_addrs()?
             .next()
@@ -41,11 +44,11 @@ impl Server {
             .to_socket_addrs()?
             .next()
             .ok_or_else(|| anyhow!("expect default target address"))?;
-        smol::run(async {
-            let listener = Async::<TcpListener>::bind(&listen)?;
+        smol::block_on(async {
+            let listener = Async::<TcpListener>::bind(listen)?;
             loop {
                 let (stream, _) = listener.accept().await?;
-                Task::spawn(async move {
+                smol::spawn(async move {
                     let server =
                         Server::new(listen, stream, socks5_server_addr, default_target_addr);
                     if let Err(e) = server.proxy().await {
