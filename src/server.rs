@@ -1,16 +1,17 @@
-use std::{
-    mem,
-    net::{SocketAddr, SocketAddrV4, TcpListener, TcpStream, ToSocketAddrs},
-    os::unix::io::AsRawFd,
-};
+use std::{mem, os::unix::io::AsRawFd};
 
-use anyhow::{anyhow, Result};
-use futures::io::{copy, AsyncReadExt};
-use smol::Async;
+use anyhow::{anyhow, Error, Result};
+use smol::{
+    block_on,
+    future::zip,
+    io::copy,
+    net::{resolve, SocketAddr, SocketAddrV4, TcpListener, TcpStream},
+    spawn,
+};
 use socks5::connect_without_auth;
 
 pub struct Server {
-    client: Async<TcpStream>,
+    client: TcpStream,
     listen: SocketAddr,
     server: SocketAddr,
     default_target_addr: SocketAddr,
@@ -19,7 +20,7 @@ pub struct Server {
 impl Server {
     pub fn new(
         listen: SocketAddr,
-        client: Async<TcpStream>,
+        client: TcpStream,
         server: SocketAddr,
         default_target_addr: SocketAddr,
     ) -> Self {
@@ -32,23 +33,19 @@ impl Server {
     }
 
     pub fn run(listen: &str, socks5_server_addr: &str, default_target_addr: &str) -> Result<()> {
-        let listen = listen
-            .to_socket_addrs()?
-            .next()
-            .ok_or_else(|| anyhow!("invalid listen address"))?;
-        let socks5_server_addr = socks5_server_addr
-            .to_socket_addrs()?
-            .next()
-            .ok_or_else(|| anyhow!("expect socks5 server address"))?;
-        let default_target_addr = default_target_addr
-            .to_socket_addrs()?
-            .next()
-            .ok_or_else(|| anyhow!("expect default target address"))?;
-        smol::block_on(async {
-            let listener = Async::<TcpListener>::bind(listen)?;
+        block_on(async {
+            let listen = Self::resolve(listen, anyhow!("invalid listen address")).await?;
+            let socks5_server_addr =
+                Self::resolve(socks5_server_addr, anyhow!("invalid socks5 server address")).await?;
+            let default_target_addr = Self::resolve(
+                default_target_addr,
+                anyhow!("invalid default target address"),
+            )
+            .await?;
+            let listener = TcpListener::bind(listen).await?;
             loop {
                 let (stream, _) = listener.accept().await?;
-                smol::spawn(async move {
+                spawn(async move {
                     let server =
                         Server::new(listen, stream, socks5_server_addr, default_target_addr);
                     if let Err(e) = server.proxy().await {
@@ -72,10 +69,14 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let srv = connect_without_auth(self.server, dest_addr.into()).await?;
-        let (mut srv_r, mut srv_w) = srv.split();
-        let (mut r, mut w) = self.client.split();
-        futures::future::select(copy(&mut r, &mut srv_w), copy(&mut srv_r, &mut w)).await;
-        Ok(())
+        match zip(copy(&self.client, &srv), copy(&srv, &self.client)).await {
+            (Ok(_), Ok(_)) => Ok(()),
+            _ => Err(anyhow!("io error")),
+        }
+    }
+
+    async fn resolve(addr: &str, err: Error) -> Result<SocketAddr> {
+        Ok(*resolve(addr).await?.first().ok_or(err)?)
     }
 
     fn get_dest_addr(&self) -> Result<SocketAddr> {

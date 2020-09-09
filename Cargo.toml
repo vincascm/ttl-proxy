@@ -6,13 +6,15 @@ description = "a transparent TCP to SOCKSv5 proxy on Linux"
 edition = "2018"
 
 [dependencies]
-futures = "0.3.5"
 anyhow = "1.0.32"
 bytes = "0.5.6"
 libc  = "0.2.76"
-smol = "0.4.0"
+smol = "1.0.0"
 clap = { version = "2.33.3", default-features = false }
-socks5 = { version = "0.2", git = "https://github.com/vincascm/socks5.git" }
+
+[dependencies.socks5]
+version = "0.2.2"
+git = "https://github.com/vincascm/socks5.git"
 
 [profile.release]
 opt-level = "z"
