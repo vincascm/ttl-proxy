@@ -69,6 +69,7 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let srv = connect_without_auth(self.server, dest_addr.into()).await?;
+        srv.set_nodelay(true)?;
         race(copy(&self.client, &srv), copy(&srv, &self.client))
             .await
             .map(|_| ())
