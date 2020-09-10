@@ -3,7 +3,7 @@ use std::{mem, os::unix::io::AsRawFd};
 use anyhow::{anyhow, Error, Result};
 use smol::{
     block_on,
-    future::zip,
+    future::race,
     io::copy,
     net::{resolve, SocketAddr, SocketAddrV4, TcpListener, TcpStream},
     spawn,
@@ -69,10 +69,10 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let srv = connect_without_auth(self.server, dest_addr.into()).await?;
-        match zip(copy(&self.client, &srv), copy(&srv, &self.client)).await {
-            (Ok(_), Ok(_)) => Ok(()),
-            _ => Err(anyhow!("io error")),
-        }
+        race(copy(&self.client, &srv), copy(&srv, &self.client))
+            .await
+            .map(|_| ())
+            .map_err(|_| anyhow!("io error"))
     }
 
     async fn resolve(addr: &str, err: Error) -> Result<SocketAddr> {
