@@ -1,19 +1,24 @@
-use std::{mem, os::unix::io::AsRawFd, time::Duration};
+use std::{
+    mem,
+    net::{TcpListener, TcpStream},
+    os::unix::io::AsRawFd,
+    time::Duration,
+};
 
 use anyhow::{anyhow, Error, Result};
 use smol::{
     block_on,
     future::{race, FutureExt},
     io::copy,
-    net::{resolve, SocketAddr, SocketAddrV4, TcpListener, TcpStream},
-    spawn, Timer,
+    net::{resolve, SocketAddr, SocketAddrV4},
+    spawn, Async, Timer,
 };
 use socks5::connect_without_auth;
 
 const TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct Server {
-    client: TcpStream,
+    client: Async<TcpStream>,
     listen: SocketAddr,
     server: SocketAddr,
     default_target_addr: SocketAddr,
@@ -22,7 +27,7 @@ pub struct Server {
 impl Server {
     pub fn new(
         listen: SocketAddr,
-        client: TcpStream,
+        client: Async<TcpStream>,
         server: SocketAddr,
         default_target_addr: SocketAddr,
     ) -> Self {
@@ -44,7 +49,7 @@ impl Server {
                 anyhow!("invalid default target address"),
             )
             .await?;
-            let listener = TcpListener::bind(listen).await?;
+            let listener = Async::<TcpListener>::bind(listen)?;
             loop {
                 let (stream, _) = listener.accept().await?;
                 spawn(async move {
@@ -71,7 +76,6 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let srv = connect_without_auth(self.server, dest_addr.into()).await?;
-        srv.set_nodelay(true)?;
         let left = copy(&self.client, &srv).or(async { Self::timeout().await });
         let right = copy(&srv, &self.client).or(async { Self::timeout().await });
         race(left, right)
