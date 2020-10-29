@@ -2,20 +2,17 @@ use std::{
     mem,
     net::{TcpListener, TcpStream},
     os::unix::io::AsRawFd,
-    time::Duration,
 };
 
 use anyhow::{anyhow, Error, Result};
 use smol::{
     block_on,
-    future::{race, FutureExt},
+    future::race,
     io::copy,
     net::{resolve, SocketAddr, SocketAddrV4},
-    spawn, Async, Timer,
+    spawn, Async,
 };
 use socks5::connect_without_auth;
-
-const TIMEOUT: Duration = Duration::from_secs(60);
 
 pub struct Server {
     client: Async<TcpStream>,
@@ -76,9 +73,7 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let srv = connect_without_auth(self.server, dest_addr.into()).await?;
-        let left = copy(&self.client, &srv).or(async { Self::timeout().await });
-        let right = copy(&srv, &self.client).or(async { Self::timeout().await });
-        race(left, right)
+        race(copy(&self.client, &srv), copy(&srv, &self.client))
             .await
             .map(|_| ())
             .map_err(|_| anyhow!("io error"))
@@ -86,11 +81,6 @@ impl Server {
 
     async fn resolve(addr: &str, err: Error) -> Result<SocketAddr> {
         Ok(*resolve(addr).await?.first().ok_or(err)?)
-    }
-
-    async fn timeout() -> Result<u64, std::io::Error> {
-        Timer::after(TIMEOUT).await;
-        Err(std::io::ErrorKind::TimedOut.into())
     }
 
     fn get_dest_addr(&self) -> Result<SocketAddr> {
