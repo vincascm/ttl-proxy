@@ -4,7 +4,7 @@ use std::{
     os::unix::io::AsRawFd,
 };
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Result};
 use smol::{
     block_on,
     future::race,
@@ -38,14 +38,9 @@ impl Server {
 
     pub fn run(listen: &str, socks5_server_addr: &str, default_target_addr: &str) -> Result<()> {
         block_on(async {
-            let listen = Self::resolve(listen, anyhow!("invalid listen address")).await?;
-            let socks5_server_addr =
-                Self::resolve(socks5_server_addr, anyhow!("invalid socks5 server address")).await?;
-            let default_target_addr = Self::resolve(
-                default_target_addr,
-                anyhow!("invalid default target address"),
-            )
-            .await?;
+            let listen = Self::resolve(listen).await?;
+            let socks5_server_addr = Self::resolve(socks5_server_addr).await?;
+            let default_target_addr = Self::resolve(default_target_addr).await?;
             let listener = Async::<TcpListener>::bind(listen)?;
             loop {
                 let (stream, _) = listener.accept().await?;
@@ -80,8 +75,11 @@ impl Server {
             .map_err(|_| anyhow!("io error"))
     }
 
-    async fn resolve(addr: &str, err: Error) -> Result<SocketAddr> {
-        Ok(*resolve(addr).await?.first().ok_or(err)?)
+    async fn resolve(addr: &str) -> Result<SocketAddr> {
+        Ok(*resolve(addr)
+            .await?
+            .first()
+            .context("resolve addr failure")?)
     }
 
     fn get_dest_addr(&self) -> Result<SocketAddr> {
