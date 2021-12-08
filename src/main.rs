@@ -33,7 +33,7 @@ fn main() {
     let socks5 = matches.value_of("socks5").unwrap_or("127.0.0.1:1080");
     let default = matches.value_of("default").unwrap_or("1.1.1.1:53");
 
-    if let Err(e) = server::Server::run(&listen, &socks5, &default) {
+    if let Err(e) = server::Server::run(listen, socks5, default) {
         println!("startup error: {}", e)
     }
 }

@@ -72,7 +72,8 @@ impl Server {
             }
             Err(_) => self.default_target_addr,
         };
-        let srv = connect_without_auth(self.server, dest_addr.into()).await?;
+        let mut srv = Async::<TcpStream>::connect(self.server).await?;
+        connect_without_auth(&mut srv, dest_addr.into()).await?;
         race(copy(&self.client, &srv), copy(&srv, &self.client))
             .await
             .map(|_| ())
