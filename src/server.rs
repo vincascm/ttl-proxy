@@ -4,15 +4,15 @@ use std::{
     os::unix::io::AsRawFd,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use smol::{
-    block_on,
+    Async, block_on,
     future::race,
     io::copy,
-    net::{resolve, SocketAddr, SocketAddrV4},
-    spawn, Async,
+    net::{SocketAddr, SocketAddrV4, resolve},
+    spawn,
 };
-use socks5::connect_without_auth;
+use socks5_client::connect;
 
 pub struct Server {
     client: Async<TcpStream>,
@@ -68,7 +68,7 @@ impl Server {
             Err(_) => self.default_target_addr,
         };
         let mut srv = Async::<TcpStream>::connect(self.server).await?;
-        connect_without_auth(&mut srv, dest_addr.into()).await?;
+        connect(&mut srv, dest_addr.into(), None).await?;
         race(copy(&self.client, &srv), copy(&srv, &self.client))
             .await
             .map(|_| ())
@@ -83,7 +83,7 @@ impl Server {
     }
 
     fn get_dest_addr(&self) -> Result<SocketAddr> {
-        use libc::{__errno_location, getsockopt, sockaddr_in, socklen_t, SOL_IP, SO_ORIGINAL_DST};
+        use libc::{__errno_location, SO_ORIGINAL_DST, SOL_IP, getsockopt, sockaddr_in, socklen_t};
         use std::ffi::c_void;
 
         let fd = self.client.as_raw_fd();

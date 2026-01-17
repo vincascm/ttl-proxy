@@ -1,39 +1,24 @@
-#[macro_use]
-extern crate clap;
-
-use clap::Arg;
+use clap::Parser;
 
 mod server;
 
-fn main() {
-    let matches = clap::app_from_crate!()
-        .arg(
-            Arg::with_name("listen")
-                .short("l")
-                .long("listen")
-                .takes_value(true)
-                .help("listen address"),
-        )
-        .arg(
-            Arg::with_name("socks5")
-                .short("s")
-                .long("socks5")
-                .takes_value(true)
-                .help("socks5 server address"),
-        )
-        .arg(
-            Arg::with_name("default")
-                .short("d")
-                .long("default")
-                .takes_value(true)
-                .help("default target address"),
-        )
-        .get_matches();
-    let listen = matches.value_of("listen").unwrap_or("127.0.0.1:10800");
-    let socks5 = matches.value_of("socks5").unwrap_or("127.0.0.1:1080");
-    let default = matches.value_of("default").unwrap_or("1.1.1.1:53");
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+struct Args {
+    /// listen address
+    #[arg(short, long, default_value = "127.0.0.1:10800")]
+    listen: String,
+    /// socks5 server address
+    #[arg(short, long, default_value = "127.0.0.1:1080")]
+    socks5: String,
+    /// default target address
+    #[arg(short, long, default_value = "1.1.1.1:53")]
+    default: String,
+}
 
-    if let Err(e) = server::Server::run(listen, socks5, default) {
+fn main() {
+    let args = Args::parse();
+    if let Err(e) = server::Server::run(&args.listen, &args.socks5, &args.default) {
         println!("startup error: {}", e)
     }
 }
